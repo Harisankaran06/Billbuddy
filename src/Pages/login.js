@@ -103,6 +103,11 @@ function Login() {
 	const [formData, setFormData] = useState({ email: "", password: "" });
 	const [message, setMessage] = useState("");
 	const [loading, setLoading] = useState(false);
+	const [connectionStatus, setConnectionStatus] = useState("");
+	const [testingConnection, setTestingConnection] = useState(false);
+
+	const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
+	const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
 
 	const handleChange = (event) => {
 		const { name, value } = event.target;
@@ -145,6 +150,54 @@ function Login() {
 			setMessage(err.message || "An error occurred. Please try again.");
 		} finally {
 			setLoading(false);
+		}
+	};
+
+	const handleConnectionTest = async () => {
+		if (!supabaseUrl || !supabaseAnonKey) {
+			setConnectionStatus(
+				"Missing REACT_APP_SUPABASE_URL or REACT_APP_SUPABASE_ANON_KEY in your environment."
+			);
+			return;
+		}
+
+		setTestingConnection(true);
+		setConnectionStatus("");
+		const controller = new AbortController();
+		const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+		try {
+			const response = await fetch(`${supabaseUrl}/auth/v1/health`, {
+				signal: controller.signal,
+				headers: {
+					apikey: supabaseAnonKey,
+					Authorization: `Bearer ${supabaseAnonKey}`,
+				},
+			});
+			const text = await response.text();
+			if (response.ok) {
+				let details = "";
+				try {
+					const json = JSON.parse(text);
+					const name = json?.name || "";
+					const version = json?.version || "";
+					details = name || version ? ` (${name} ${version}`.trim() + ")" : "";
+				} catch (parseError) {
+					details = text && text.trim().toLowerCase() !== "ok" ? ` (${text.trim()})` : "";
+				}
+				setConnectionStatus(`Supabase connection OK${details}.`);
+			} else {
+				setConnectionStatus(`Supabase health check failed: ${response.status} ${text}`);
+			}
+		} catch (err) {
+			if (err.name === "AbortError") {
+				setConnectionStatus("Connection test timed out.");
+			} else {
+				setConnectionStatus(err.message || "Connection test failed.");
+			}
+		} finally {
+			clearTimeout(timeoutId);
+			setTestingConnection(false);
 		}
 	};
 
@@ -240,8 +293,34 @@ function Login() {
 					</button>
 				</form>
 
+				<button
+					type="button"
+					style={{
+						...buttonStyle,
+						marginTop: "12px",
+						background: "linear-gradient(135deg, #22d3ee 0%, #2563eb 100%)",
+						opacity: testingConnection ? 0.7 : 1,
+						cursor: testingConnection ? "not-allowed" : "pointer",
+					}}
+					disabled={testingConnection}
+					onClick={handleConnectionTest}
+				>
+					{testingConnection ? "Testing connection..." : "Test Supabase Connection"}
+				</button>
+
+				{connectionStatus && (
+					<p
+						style={{
+							...helperStyle,
+							color: connectionStatus.includes("OK") ? "#22c55e" : "#ef4444",
+						}}
+					>
+						{connectionStatus}
+					</p>
+				)}
+
 				{message && <p style={{...helperStyle, color: message.includes('success') ? '#22c55e' : '#ef4444'}}>{message}</p>}
-			{authError && <p style={{...helperStyle, color: '#ef4444'}}>{authError}</p>}
+			{!message && authError && <p style={{...helperStyle, color: '#ef4444'}}>{authError}</p>}
 
 				<p style={signupRowStyle}>
 					Don't have an account?

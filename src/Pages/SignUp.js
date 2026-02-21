@@ -154,7 +154,10 @@ const SignUp = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!email || !password || !displayName) {
+    const trimmedEmail = email.trim();
+    const trimmedDisplayName = displayName.trim();
+
+    if (!trimmedEmail || !password || !trimmedDisplayName) {
       setMessage('Please fill in all fields');
       return;
     }
@@ -166,13 +169,18 @@ const SignUp = () => {
     setIsSubmitting(true);
     setMessage('');
     try {
-      const { error } = await signUp(email, password, displayName);
+      const { user, error } = await signUp(trimmedEmail, password, trimmedDisplayName);
       if (error) {
         setMessage(error.message || 'Sign up failed. Please try again.');
         setMascot('😢');
       } else {
         setMascot('🚀');
-        setMessage("Account created! Redirecting to login...");
+        const needsEmailConfirmation = !!user && !user.email_confirmed_at;
+        setMessage(
+          needsEmailConfirmation
+            ? 'Account created! Please check your email to confirm your account, then log in.'
+            : 'Account created! Redirecting to login...'
+        );
         setTimeout(() => navigate('/'), 2000);
       }
     } catch (err) {
